@@ -40,34 +40,48 @@
 (defun transduce (transducer reducer initial-value input)
   (reduce (funcall transducer reducer) input :initial-value initial-value))
 
-(defmacro super-transducer ((expander ins) &body pipelines)
-  (let ((in-syms
-         (loop for i from 1 to ins
-            collect (gensym (format nil "IN-~A" i))))
-        (out-syms
-         (loop for i from 1 to (length pipelines)
-            collect (gensym (format nil "OUT-~A" i))))
-        (accum-syms
-         (loop for i from 1 to (length pipelines)
-            collect (gensym (format nil "ACCUM-~A" i)))))
-    `(lambda (,@(loop for accum-sym in accum-syms
-                   collect accum-sym)
-              ,@(loop for in-sym in in-syms
-                   collect in-sym))
+(defmacro def-pipeline (name (reducer) &rest transducers)
+  (with-gensyms (accum input full-reducer)
+    `(defun ,name (,reducer)
+       (let ((,full-reducer
+              (funcall
+               (compose
+                ,@transducers)
+               ,reducer)))
+         (lambda (,accum ,input)
+           (funcall ,full-reducer ,accum ,input))))))
+
+(defmacro let-pipeline (bindings &body body)
+  (with-gensyms (reducer full-reducer accum input)
+    `(flet (,@(loop for (name . transducers) in bindings
+                 collect
+                   `(,name (,reducer)
+                           (let ((,full-reducer
+                                  (funcall
+                                   (compose
+                                    ,@transducers)
+                                   ,reducer)))
+                             (lambda (,accum ,input)
+                               (funcall ,full-reducer ,accum ,input))))))
+       ,@body)))
+
+(defmacro super-transducer (vars fan-out-form &body pipelines)
+  (let* ((size (length pipelines))
+         (out-syms
+          (loop for i from 1 to size
+             collect (gensym (format nil "OUT-~A" i))))
+         (accum-syms
+          (loop for i from 1 to size
+             collect (gensym (format nil "ACCUM-~A" i)))))
+    `(lambda (,@accum-syms ,@vars)
        (multiple-value-bind (,@out-syms)
-           (,expander ,@in-syms)
+           ,fan-out-form
          (values
-          ,@(loop for (reducer . transducers) in pipelines
+          ,@(loop for pipeline in pipelines
                for out-sym in out-syms
                for accum-sym in accum-syms
                collect
-                 `(funcall
-                   (funcall
-                    (compose
-                     ,@transducers)
-                    ,reducer)
-                   ,accum-sym
-                   ,out-sym)))))))
+                 `(funcall ,pipeline ,accum-sym ,out-sym)))))))
 
 (defmacro super-fold (function (&rest seeds) &body sequences)
   (let ((out-syms

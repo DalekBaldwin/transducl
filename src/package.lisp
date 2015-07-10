@@ -10,6 +10,8 @@
            #:filter-mapping
            #:mapcatting
            #:transduce
+           #:def-pipeline
+           #:let-pipeline
            #:super-transducer
            #:super-fold))
 

@@ -26,30 +26,21 @@
      (list 25 9 1)
      (list 6 6 8 8 4 4)
      (list 40 20 50 10 30))
-    (multiple-value-list   
-     (super-fold
-         (super-transducer
-             (;; pipe two inputs into three pipelines
-              (lambda (x y) (values x (+ x y) y)) 2) 
-           
-           ;; pipeline 1
-           ((lambda (x y) (list* y x)) ;; base-level reducer, essentially conj
-            
-            (filtering #'oddp)
-            (mapping (lambda (x) (* x x))))
-           
-           ;; pipeline 2
-           ((lambda (x y) (list* y x))
-            
-            (filtering #'evenp)
-            (mapcatting (lambda (x) (list x x))))
-           
-           ;; pipeline 3
-           ((lambda (x y) (list* y x))
-            
-            (mapping (lambda (x) (* 10 x)))))
-         
-         (nil nil nil) ;; pipeline seeds
-       (list 1 2 3 4 5) ;; input 1
-       (list 3 1 5 2 4) ;; input 2
-       )))))
+    (multiple-value-list
+     (let-pipeline
+         ((herp (filtering #'oddp)
+                (mapping (lambda (x) (* x x))))
+          (derp (filtering #'evenp)
+                (mapcatting (lambda (x) (list x x))))
+          (burp (mapping (lambda (x) (* 10 x)))))
+       (super-fold
+           (super-transducer
+               ;; pipe two inputs into three pipelines
+               (x y) (values x (+ x y) y)
+             (herp #'list-conj)
+             (derp #'list-conj)
+             (burp #'list-conj))
+           (nil nil nil) ;; pipeline seeds
+         (list 1 2 3 4 5) ;; input 1
+         (list 3 1 5 2 4) ;; input 2
+         ))))))
